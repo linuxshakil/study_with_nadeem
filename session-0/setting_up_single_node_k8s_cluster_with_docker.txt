@@ -1,0 +1,80 @@
+Installation setups on AWS EC2
+############## setup requirements##################################################################
+//Instance Setting
+AMI location : amazon/al2023-ami-2023.2.20231030.1-kernel-6.1-x86_64
+AMI Name : al2023-ami-2023.2.20231030.1-kernel-6.1-x86_64
+AMI ID : ami-02e94b011299ef128
+Architecture : 64-bit (x86)
+Instance type : t2.medium
+Key pair login : enabled 
+
+//Network Setting
+VPC : that has Network Gateway
+Subnet : public ( route table to internet gatway )
+public-IP : enabled
+
+//Firewall Setting
+Inbound Rules : ssh from your IP 
+
+//Storage Setting
+20 GiB gp3 / gp2 
+############## ssh to the instance and run the following commands#################################
+sudo yum update -y
+sudo yum install git -y
+sudo yum install -y docker
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker ec2-user
+sudo tee /etc/yum.repos.d/kubernetes.repo <<EOF
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg
+        https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+EOF
+sudo yum install -y kubelet-1.22.0 kubeadm-1.22.0 kubectl-1.22.0 --disableexcludes=kubernetes
+sudo systemctl enable --now kubelet
+sudo kubeadm init --kubernetes-version=1.22.0 --pod-network-cidr=10.244.0.0/16
+curl -LO https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+export KUBECONFIG=/etc/kubernetes/admin.conf
+kubectl apply -f kube-flannel.yml
+kubectl taint node `hostname` node-role.kubernetes.io/master:NoSchedule-
+################################################################################################
+
+############## Common Known Issues ####################################################################
+##amazon ami issue : https://github.com/amazonlinux/amazon-linux-2023/issues/528
+
+##coredn issue : https://github.com/kubernetes/kubernetes/issues/70202
+sudo tee /run/flannel/subnet.env <<EOF
+
+FLANNEL_NETWORK=10.17.0.0/16
+FLANNEL_SUBNET=10.18.0.0/24
+FLANNEL_MTU=1450
+FLANNEL_IPMASQ=true
+
+EOF
+
+##
+Error registering network: failed to acquire lease: subnet  specified in the flannel net config doesn't contain  PodCIDR of the  node
+
+## this will also work
+[root@ip-172-31-0-78 ec2-user]# cat /run/flannel/subnet.env
+FLANNEL_NETWORK=10.17.0.0/16
+FLANNEL_SUBNET=10.17.0.1/24
+FLANNEL_MTU=8951
+FLANNEL_IPMASQ=true
+
+## Debugging links
+
+https://github.com/kubernetes/kubernetes/issues/70202
+
+https://www.goglides.dev/bkpandey/journalctl-to-debug-kubernetes-3h0j#:~:text=The%20command%20journalctl%20%2Dx%20%2Df,displayed%20as%20they%20are%20generated.
+
+https://www.loggly.com/ultimate-guide/using-journalctl/
+
+https://stackoverflow.com/questions/50833616/kube-flannel-cant-get-cidr-although-podcidr-available-on-node
+
+https://devops.stackexchange.com/questions/14891/cni0-already-has-an-ip-address

@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-production-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myapp-production
+  template:
+    metadata:
+      labels:
+        app: myapp-production
+    spec:
+      containers:
+        - name: myapp
+          image: myapp:productionImage
+          resources:
+            requests:
+               memory: "100Mi"
+               cpu: "100m"
+            limits:
+               memory: "100Mi"
+               cpu: "100m"
+          ports:
+            - containerPort: 9000
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9000
